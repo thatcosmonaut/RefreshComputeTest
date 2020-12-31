@@ -565,8 +565,6 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	// todo: free vertex buffers (and everything)
-
 	SDL_free(screenshotPixels);
 
 	REFRESH_AddDisposeColorTarget(device, mainColorTarget);
