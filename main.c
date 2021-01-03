@@ -139,14 +139,19 @@ int main(int argc, char *argv[])
 		REFRESH_TEXTUREUSAGE_SAMPLER_BIT
 	);
 
-	REFRESH_SetTextureData2D(
+	REFRESH_TextureSlice setTextureSlice;
+	setTextureSlice.texture = particleTexture;
+	setTextureSlice.rectangle.x = 0;
+	setTextureSlice.rectangle.y = 0;
+	setTextureSlice.rectangle.w = textureWidth;
+	setTextureSlice.rectangle.h = textureHeight;
+	setTextureSlice.depth = 0;
+	setTextureSlice.layer = 0;
+	setTextureSlice.level = 0;
+
+	REFRESH_SetTextureData(
 		device,
-		particleTexture,
-		0,
-		0,
-		textureWidth,
-		textureHeight,
-		0,
+		&setTextureSlice,
 		particleTexturePixels,
 		textureWidth * textureHeight * 4
 	);
@@ -169,14 +174,18 @@ int main(int argc, char *argv[])
 		REFRESH_TEXTUREUSAGE_SAMPLER_BIT
 	);
 
-	REFRESH_SetTextureData2D(
+	setTextureSlice.texture = particleGradientTexture;
+	setTextureSlice.rectangle.x = 0;
+	setTextureSlice.rectangle.y = 0;
+	setTextureSlice.rectangle.w = textureWidth;
+	setTextureSlice.rectangle.h = textureHeight;
+	setTextureSlice.depth = 0;
+	setTextureSlice.layer = 0;
+	setTextureSlice.level = 0;
+
+	REFRESH_SetTextureData(
 		device,
-		particleGradientTexture,
-		0,
-		0,
-		textureWidth,
-		textureHeight,
-		0,
+		&setTextureSlice,
 		particleGradientTexturePixels,
 		textureWidth * textureHeight * 4
 	);
@@ -245,7 +254,13 @@ int main(int argc, char *argv[])
 
 	REFRESH_TextureSlice mainColorTargetTextureSlice;
 	mainColorTargetTextureSlice.texture = mainColorTargetTexture;
+	mainColorTargetTextureSlice.rectangle.x = 0;
+	mainColorTargetTextureSlice.rectangle.y = 0;
+	mainColorTargetTextureSlice.rectangle.w = windowWidth;
+	mainColorTargetTextureSlice.rectangle.h = windowHeight;
+	mainColorTargetTextureSlice.depth = 0;
 	mainColorTargetTextureSlice.layer = 0;
+	mainColorTargetTextureSlice.level = 0;
 
 	REFRESH_ColorTarget *mainColorTarget = REFRESH_CreateColorTarget(
 		device,
@@ -438,10 +453,10 @@ int main(int argc, char *argv[])
 	samplerStateCreateInfo.borderColor = REFRESH_BORDERCOLOR_FLOAT_OPAQUE_BLACK;
 	samplerStateCreateInfo.compareEnable = 0;
 	samplerStateCreateInfo.compareOp = REFRESH_COMPAREOP_NEVER;
-	samplerStateCreateInfo.magFilter = REFRESH_SAMPLERFILTER_LINEAR;
+	samplerStateCreateInfo.magFilter = REFRESH_FILTER_LINEAR;
 	samplerStateCreateInfo.maxAnisotropy = 0;
 	samplerStateCreateInfo.maxLod = 1;
-	samplerStateCreateInfo.minFilter = REFRESH_SAMPLERFILTER_LINEAR;
+	samplerStateCreateInfo.minFilter = REFRESH_FILTER_LINEAR;
 	samplerStateCreateInfo.minLod = 1;
 	samplerStateCreateInfo.mipLodBias = 1;
 	samplerStateCreateInfo.mipmapMode = REFRESH_SAMPLERMIPMAPMODE_LINEAR;
@@ -461,6 +476,7 @@ int main(int argc, char *argv[])
 
 	uint8_t screenshotKey = 0;
 	uint8_t *screenshotPixels = SDL_malloc(sizeof(uint8_t) * windowWidth * windowHeight * 4);
+	REFRESH_Buffer *screenshotBuffer = REFRESH_CreateBuffer(device, 0, windowWidth * windowHeight * 4);
 
 	ParticleComputeUniforms particleComputeUniforms;
 	particleComputeUniforms.particleCount = PARTICLE_COUNT;
@@ -523,13 +539,16 @@ int main(int argc, char *argv[])
 			particleComputeUniforms.destinationX = (float)SDL_sin((t)) * 0.75f;
 			particleComputeUniforms.destinationY = 0.0f;
 
-			REFRESH_BindComputePipeline(device, computePipeline);
-			REFRESH_BindComputeBuffers(device, &particleBuffer);
-			uint32_t computeParamOffset = REFRESH_PushComputeShaderParams(device, &particleComputeUniforms, 1);
-			REFRESH_DispatchCompute(device, PARTICLE_COUNT / 256, 1, 1, computeParamOffset);
+			REFRESH_CommandBuffer *commandBuffer = REFRESH_AcquireCommandBuffer(device, 0);
+
+			REFRESH_BindComputePipeline(device, commandBuffer, computePipeline);
+			REFRESH_BindComputeBuffers(device, commandBuffer, &particleBuffer);
+			uint32_t computeParamOffset = REFRESH_PushComputeShaderParams(device, commandBuffer, &particleComputeUniforms, 1);
+			REFRESH_DispatchCompute(device, commandBuffer, PARTICLE_COUNT / 256, 1, 1, computeParamOffset);
 
 			REFRESH_BeginRenderPass(
 				device,
+				commandBuffer,
 				mainRenderPass,
 				mainFramebuffer,
 				renderArea,
@@ -540,26 +559,30 @@ int main(int argc, char *argv[])
 
 			REFRESH_BindGraphicsPipeline(
 				device,
+				commandBuffer,
 				graphicsPipeline
 			);
 
-			REFRESH_BindVertexBuffers(device, 0, 1, &particleBuffer, offsets);
-			REFRESH_SetFragmentSamplers(device, sampleTextures, sampleSamplers);
-			REFRESH_DrawPrimitives(device, 0, PARTICLE_COUNT, 0, 0);
+			REFRESH_BindVertexBuffers(device, commandBuffer, 0, 1, &particleBuffer, offsets);
+			REFRESH_SetFragmentSamplers(device, commandBuffer, sampleTextures, sampleSamplers);
+			REFRESH_DrawPrimitives(device, commandBuffer, 0, PARTICLE_COUNT, 0, 0);
 
-			REFRESH_EndRenderPass(device);
+			REFRESH_EndRenderPass(device, commandBuffer);
 
 			if (screenshotKey == 1)
 			{
 				SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "screenshot!");
-				REFRESH_GetTextureData2D(device, mainColorTargetTexture, 0, 0, windowWidth, windowHeight, 0, screenshotPixels);
+				REFRESH_CopyTextureToBuffer(device, commandBuffer, &mainColorTargetTextureSlice, screenshotBuffer);
 			}
 
-			REFRESH_QueuePresent(device, &mainColorTargetTextureSlice, NULL, &renderArea);
-			REFRESH_Submit(device);
+			REFRESH_QueuePresent(device, commandBuffer, &mainColorTargetTextureSlice, &renderArea, REFRESH_FILTER_NEAREST);
+			REFRESH_Submit(device, &commandBuffer, 1);
 
+			/* FIXME: sync */
 			if (screenshotKey == 1)
 			{
+				REFRESH_Wait(device);
+				REFRESH_GetBufferData(device, screenshotBuffer, screenshotPixels, windowWidth * windowHeight * 4);
 				REFRESH_Image_SavePNG("screenshot.png", windowWidth, windowHeight, screenshotPixels);
 			}
 		}
@@ -575,7 +598,8 @@ int main(int argc, char *argv[])
 	REFRESH_AddDisposeTexture(device, mainColorTargetTexture);
 	REFRESH_AddDisposeSampler(device, sampler);
 
-	REFRESH_AddDisposeVertexBuffer(device, particleBuffer);
+	REFRESH_AddDisposeBuffer(device, screenshotBuffer);
+	REFRESH_AddDisposeBuffer(device, particleBuffer);
 
 	REFRESH_AddDisposeGraphicsPipeline(device, graphicsPipeline);
 	REFRESH_AddDisposeComputePipeline(device, computePipeline);
