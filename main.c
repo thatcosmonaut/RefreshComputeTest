@@ -132,7 +132,7 @@ int main(int argc, char *argv[])
 
 	REFRESH_Texture *particleTexture = REFRESH_CreateTexture2D(
 		device,
-		REFRESH_SURFACEFORMAT_R8G8B8A8,
+		REFRESH_COLORFORMAT_R8G8B8A8,
 		textureWidth,
 		textureHeight,
 		1,
@@ -167,7 +167,7 @@ int main(int argc, char *argv[])
 
 	REFRESH_Texture *particleGradientTexture = REFRESH_CreateTexture2D(
 		device,
-		REFRESH_SURFACEFORMAT_R8G8B8A8,
+		REFRESH_COLORFORMAT_R8G8B8A8,
 		textureWidth,
 		textureHeight,
 		1,
@@ -222,7 +222,7 @@ int main(int argc, char *argv[])
 	/* Define RenderPass */
 
 	REFRESH_ColorTargetDescription mainColorTargetDescription;
-	mainColorTargetDescription.format = REFRESH_SURFACEFORMAT_R8G8B8A8;
+	mainColorTargetDescription.format = REFRESH_COLORFORMAT_R8G8B8A8;
 	mainColorTargetDescription.loadOp = REFRESH_LOADOP_CLEAR;
 	mainColorTargetDescription.storeOp = REFRESH_STOREOP_STORE;
 	mainColorTargetDescription.multisampleCount = REFRESH_SAMPLECOUNT_1;
@@ -245,7 +245,7 @@ int main(int argc, char *argv[])
 
 	REFRESH_Texture *mainColorTargetTexture = REFRESH_CreateTexture2D(
 		device,
-		REFRESH_SURFACEFORMAT_R8G8B8A8,
+		REFRESH_COLORFORMAT_R8G8B8A8,
 		windowWidth,
 		windowHeight,
 		1,
@@ -576,7 +576,7 @@ int main(int argc, char *argv[])
 			}
 
 			REFRESH_QueuePresent(device, commandBuffer, &mainColorTargetTextureSlice, &renderArea, REFRESH_FILTER_NEAREST);
-			REFRESH_Submit(device, &commandBuffer, 1);
+			REFRESH_Submit(device, 1, &commandBuffer);
 
 			/* FIXME: sync */
 			if (screenshotKey == 1)
